@@ -4,27 +4,30 @@
 const express = require("express");
 const router = express.Router();
 
+const ensureAdmin = require("../middleware/ensureAdmin");
+
+const AdminAuthController = require("../controllers/AdminAuthController");
+
+// páginas do admin (já existiam)
 const precificacaoRoutes = require("./precificacao.routes");
 
-// 🔒 se você já tiver auth middleware do admin, usa aqui no router inteiro:
-// const { requireAdmin } = require("../middleware/auth");
-// router.use(requireAdmin);
+// novas rotas
+const categoriasRoutes = require("./categorias.routes");
+const produtosRoutes = require("./produtos.routes");
 
-// Home do admin (placeholder)
-router.get("/", (req, res) => res.redirect("/admin/dashboard"));
-router.get("/dashboard", (req, res) => {
-  // depois a gente faz a view do dashboard
-  res.send("Dashboard (em breve)");
+// auth (sem proteção)
+router.get("/login", AdminAuthController.viewLogin);
+router.post("/login", AdminAuthController.doLogin);
+router.post("/logout", AdminAuthController.logout);
+
+// dashboard admin (protegido)
+router.get("/", ensureAdmin, (req, res) => {
+  return res.render("admin/home");
 });
 
-// Feature: Precificação
-router.use("/precificacao", precificacaoRoutes);
-
-// Logout (placeholder) — troca pro seu esquema real
-router.post("/logout", (req, res) => {
-  // se você usar sessão/cookie, limpa aqui
-  // req.session.destroy(() => res.redirect("/"));
-  res.redirect("/");
-});
+// sub-rotas protegidas
+router.use("/precificacao", ensureAdmin, precificacaoRoutes);
+router.use("/categorias", ensureAdmin, categoriasRoutes);
+router.use("/produtos", ensureAdmin, produtosRoutes);
 
 module.exports = router;
