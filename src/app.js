@@ -39,8 +39,6 @@ app.use(express.static(path.join(process.cwd(), "public")));
 
 // rotas públicas (catálogo, etc.)
 app.use("/", publicRoutes);
-// src/app.js
-app.use("/catalogo", require("./routes/catalogo.routes"));
 
 
 
