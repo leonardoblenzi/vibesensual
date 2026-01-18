@@ -1,6 +1,8 @@
 // knexfile.js
 "use strict";
 
+require("dotenv").config();
+
 const DATABASE_URL = process.env.PG_DATABASE_URL || process.env.DATABASE_URL;
 
 module.exports = {
