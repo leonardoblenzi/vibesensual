@@ -4,11 +4,7 @@
 const express = require("express");
 const router = express.Router();
 
-const PrecificacaoController = require("../src/controllers/PrecificacaoController");
-
-// 🔒 se você já tiver auth middleware, pluga aqui:
-// const { requireAdmin } = require("../middleware/auth");
-// router.use(requireAdmin);
+const PrecificacaoController = require("../controllers/PrecificacaoController");
 
 // View
 router.get("/", PrecificacaoController.view);
