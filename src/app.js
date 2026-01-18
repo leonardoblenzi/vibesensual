@@ -5,6 +5,7 @@ const express = require("express");
 const path = require("path");
 
 const adminRoutes = require("./routes/admin.routes");
+const publicRoutes = require("./routes/public.routes");
 
 const app = express();
 
@@ -17,11 +18,11 @@ app.set("views", path.join(process.cwd(), "views"));
 // estáticos
 app.use(express.static(path.join(process.cwd(), "public")));
 
-// rotas
-app.use("/admin", adminRoutes);
+// rotas públicas (catálogo, etc.)
+app.use("/", publicRoutes);
 
-// catálogo público (depois fazemos)
-app.get("/", (req, res) => res.redirect("/catalogo"));
+// rotas admin
+app.use("/admin", adminRoutes);
 
 // health check (ajuda MUITO no Render)
 app.get("/health", (req, res) => res.json({ ok: true }));
