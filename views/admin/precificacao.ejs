@@ -1,0 +1,375 @@
+<!-- views/admin/precificacao.ejs -->
+<%- include("../layouts/admin", {
+  title: "Precificação • VibeSensual",
+  active: "precificacao",
+  envLabel: envLabel || "Render • Postgres",
+  topbarActions: `
+    <button class="btn btn--ghost" type="button" id="btnSync">Sincronizar</button>
+  `,
+  sidebarFooter: `
+    <div class="muted small">Atalhos</div>
+    <div class="stack">
+      <button class="btn btn--small btn--ghost" type="button" id="btnImportar">Importar</button>
+      <button class="btn btn--small btn--ghost" type="button" id="btnExportar">Exportar</button>
+    </div>
+  `,
+  body: `
+    <section class="page-head">
+      <div>
+        <h1 class="h1">Precificação</h1>
+        <p class="sub">Preço fixo por canal, calculadora de sugerido e regras globais.</p>
+      </div>
+
+      <div class="page-head__actions">
+        <div class="chip" id="statsChip">Carregando…</div>
+        <button class="btn" type="button" id="btnSalvarTudo">Salvar tudo</button>
+      </div>
+    </section>
+
+    <!-- TABS -->
+    <section class="tabs" aria-label="Abas de precificação">
+      <button class="tab tab--active" type="button" data-tab="preco-fixo">1) Preço fixo por canal</button>
+      <button class="tab" type="button" data-tab="calculadora">2) Calculadora (sugerido)</button>
+      <button class="tab" type="button" data-tab="regras-globais">3) Regras globais</button>
+    </section>
+
+    <!-- TAB: PREÇO FIXO -->
+    <section class="panel" data-panel="preco-fixo">
+      <div class="panel__head">
+        <h2 class="h2">Preço fixo por produto e canal</h2>
+        <p class="muted">Edite direto na tabela e salve. O sistema usa isso no catálogo e no cálculo do lucro.</p>
+      </div>
+
+      <div class="grid grid--2">
+        <div class="card">
+          <div class="card__head"><h3 class="h3">Filtro</h3></div>
+          <div class="card__body">
+            <div class="row">
+              <label class="label" for="qProduto">Buscar produto</label>
+              <input class="input" id="qProduto" placeholder="nome ou SKU..." />
+            </div>
+
+            <div class="row">
+              <label class="label" for="fCanal">Canal</label>
+              <select class="select" id="fCanal">
+                <option value="all">Todos</option>
+                <option value="shopee">Shopee</option>
+                <option value="ml">Mercado Livre</option>
+                <option value="presencial">Presencial</option>
+              </select>
+            </div>
+
+            <div class="row row--inline">
+              <label class="check">
+                <input type="checkbox" id="onlyMissing" />
+                <span>Mostrar só sem preço</span>
+              </label>
+            </div>
+
+            <div class="row row--inline">
+              <button class="btn btn--ghost" type="button" id="btnLimparFiltro">Limpar</button>
+              <button class="btn" type="button" id="btnAplicarFiltro">Aplicar</button>
+            </div>
+
+            <div class="hint">Dica: dá pra aplicar “preço sugerido” em massa usando as regras globais.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__head"><h3 class="h3">Ações rápidas</h3></div>
+          <div class="card__body">
+            <div class="row">
+              <label class="label">Aplicar preço sugerido (massa)</label>
+              <div class="row row--inline">
+                <select class="select" id="bulkCanal">
+                  <option value="shopee">Shopee</option>
+                  <option value="ml">Mercado Livre</option>
+                  <option value="presencial">Presencial</option>
+                </select>
+                <button class="btn" type="button" id="btnAplicarSugerido">Aplicar</button>
+              </div>
+              <div class="hint">Ele calcula e preenche só onde estiver vazio (ou conforme opção no JS).</div>
+            </div>
+
+            <div class="row">
+              <label class="label">Arredondamento</label>
+              <div class="row row--inline">
+                <select class="select" id="roundMode">
+                  <option value="none">Sem arredondar</option>
+                  <option value="90">Terminar em ,90</option>
+                  <option value="99">Terminar em ,99</option>
+                  <option value="00">Terminar em ,00</option>
+                </select>
+                <button class="btn btn--ghost" type="button" id="btnPreviewArred">Prévia</button>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row row--inline">
+              <button class="btn btn--ghost" type="button" id="btnDesfazer">Desfazer</button>
+              <button class="btn" type="button" id="btnSalvarPrecos">Salvar preços</button>
+            </div>
+
+            <div class="hint" id="dirtyHint">Nenhuma alteração pendente.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card--table">
+        <div class="card__head card__head--tight">
+          <div>
+            <h3 class="h3">Tabela de preços</h3>
+            <div class="muted small" id="tableMeta">Carregando…</div>
+          </div>
+
+          <div class="row row--inline">
+            <button class="btn btn--ghost btn--small" type="button" id="btnRecarregarTabela">Recarregar</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table" id="precosTable">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>SKU</th>
+                <th class="num">Estoque</th>
+                <th class="num">Custo</th>
+                <th class="num">Shopee</th>
+                <th class="num">ML</th>
+                <th class="num">Presencial</th>
+                <th class="num">Margem (canal)</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- preenchido via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: CALCULADORA -->
+    <section class="panel hidden" data-panel="calculadora">
+      <div class="panel__head">
+        <h2 class="h2">Calculadora de preço sugerido</h2>
+        <p class="muted">Calcula preço sugerido e lucro estimado com base em custo + regras do canal.</p>
+      </div>
+
+      <div class="grid grid--3">
+        <div class="card">
+          <div class="card__head"><h3 class="h3">Entrada</h3></div>
+          <div class="card__body">
+            <div class="row">
+              <label class="label" for="calcProduto">Produto (opcional)</label>
+              <input class="input" id="calcProduto" placeholder="buscar por nome/SKU…" />
+              <div class="hint">Se escolher um produto, puxa custo automaticamente.</div>
+            </div>
+
+            <div class="row">
+              <label class="label" for="calcCanal">Canal</label>
+              <select class="select" id="calcCanal">
+                <option value="shopee">Shopee</option>
+                <option value="ml">Mercado Livre</option>
+                <option value="presencial">Presencial</option>
+              </select>
+            </div>
+
+            <div class="row">
+              <label class="label" for="calcCusto">Custo do produto</label>
+              <input class="input" id="calcCusto" inputmode="decimal" placeholder="ex: 19,90" />
+            </div>
+
+            <div class="row">
+              <label class="label" for="calcMargem">Margem desejada (%)</label>
+              <input class="input" id="calcMargem" inputmode="decimal" placeholder="ex: 35" />
+            </div>
+
+            <div class="row">
+              <label class="label">Custos do canal</label>
+              <div class="grid grid--2">
+                <div class="row">
+                  <label class="label small" for="calcTaxaPct">Taxa %</label>
+                  <input class="input" id="calcTaxaPct" inputmode="decimal" placeholder="ex: 14" />
+                </div>
+                <div class="row">
+                  <label class="label small" for="calcTaxaFixa">Taxa fixa</label>
+                  <input class="input" id="calcTaxaFixa" inputmode="decimal" placeholder="ex: 2,00" />
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <label class="label">Ajustes médios</label>
+              <div class="grid grid--2">
+                <div class="row">
+                  <label class="label small" for="calcDescontoMedio">Desconto médio</label>
+                  <input class="input" id="calcDescontoMedio" inputmode="decimal" placeholder="ex: 1,00" />
+                </div>
+                <div class="row">
+                  <label class="label small" for="calcFreteSeller">Frete (seller)</label>
+                  <input class="input" id="calcFreteSeller" inputmode="decimal" placeholder="ex: 0,00" />
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <label class="label" for="calcPrecoDeAdd">Acréscimo “Preço DE” (opcional)</label>
+              <input class="input" id="calcPrecoDeAdd" inputmode="decimal" placeholder="ex: 5,00" />
+            </div>
+
+            <div class="row row--inline">
+              <button class="btn btn--ghost" type="button" id="btnCalcReset">Limpar</button>
+              <button class="btn" type="button" id="btnCalcular">Calcular</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__head"><h3 class="h3">Resultado</h3></div>
+          <div class="card__body">
+            <div class="kpi">
+              <div class="kpi__label">Preço sugerido</div>
+              <div class="kpi__value" id="outPrecoSugerido">—</div>
+              <div class="kpi__sub muted" id="outPrecoDe">Preço “DE”: —</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="kv">
+              <div class="kv__row"><span class="muted">Recebido líquido (estimado)</span><strong id="outLiquido">—</strong></div>
+              <div class="kv__row"><span class="muted">Custo (COGS)</span><strong id="outCogs">—</strong></div>
+              <div class="kv__row"><span class="muted">Lucro</span><strong id="outLucro">—</strong></div>
+              <div class="kv__row"><span class="muted">Margem</span><strong id="outMargem">—</strong></div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row">
+              <label class="label">Arredondar preço sugerido</label>
+              <select class="select" id="calcRoundMode">
+                <option value="none">Sem arredondar</option>
+                <option value="90">Terminar em ,90</option>
+                <option value="99">Terminar em ,99</option>
+                <option value="00">Terminar em ,00</option>
+              </select>
+            </div>
+
+            <div class="row row--inline">
+              <button class="btn btn--ghost" type="button" id="btnAplicarArredCalc">Aplicar arredondamento</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row">
+              <label class="label">Salvar como preço fixo</label>
+              <div class="row row--inline">
+                <button class="btn" type="button" id="btnSalvarPrecoCanal">Salvar no canal selecionado</button>
+              </div>
+              <div class="hint">Se você escolheu um produto, salva direto no banco.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__head"><h3 class="h3">Regras do canal (prévia)</h3></div>
+          <div class="card__body">
+            <div class="muted">Isso puxa das Regras Globais quando você troca o canal.</div>
+            <div class="divider"></div>
+
+            <div class="kv">
+              <div class="kv__row"><span class="muted">Taxa % padrão</span><strong id="ruleTaxaPct">—</strong></div>
+              <div class="kv__row"><span class="muted">Taxa fixa padrão</span><strong id="ruleTaxaFixa">—</strong></div>
+              <div class="kv__row"><span class="muted">Desconto médio</span><strong id="ruleDesconto">—</strong></div>
+              <div class="kv__row"><span class="muted">Frete (seller)</span><strong id="ruleFrete">—</strong></div>
+              <div class="kv__row"><span class="muted">Acréscimo “DE”</span><strong id="rulePrecoDe">—</strong></div>
+              <div class="kv__row"><span class="muted">Margem mínima</span><strong id="ruleMargemMin">—</strong></div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="row">
+              <button class="btn btn--ghost" type="button" id="btnPuxarRegras">Puxar regras globais agora</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: REGRAS GLOBAIS -->
+    <section class="panel hidden" data-panel="regras-globais">
+      <div class="panel__head">
+        <h2 class="h2">Regras globais por canal</h2>
+        <p class="muted">Essas regras alimentam a calculadora e a aplicação em massa do sugerido.</p>
+      </div>
+
+      <div class="card">
+        <div class="card__head">
+          <h3 class="h3">Configurações</h3>
+          <div class="row row--inline">
+            <button class="btn btn--ghost btn--small" type="button" id="btnResetRegras">Restaurar padrão</button>
+            <button class="btn btn--small" type="button" id="btnSalvarRegras">Salvar regras</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table" id="regrasTable">
+            <thead>
+              <tr>
+                <th>Canal</th>
+                <th class="num">Taxa %</th>
+                <th class="num">Taxa fixa</th>
+                <th class="num">Desconto médio</th>
+                <th class="num">Frete (seller)</th>
+                <th class="num">Acréscimo “DE”</th>
+                <th class="num">Margem mínima (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-canal="shopee">
+                <td><span class="pill pill--pink">Shopee</span></td>
+                <td class="num"><input class="input input--sm num" data-field="taxa_pct" placeholder="0" /></td>
+                <td class="num"><input class="input input--sm num" data-field="taxa_fixa" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="desconto_medio" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="frete_seller" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="preco_de_add" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="margem_min_pct" placeholder="0" /></td>
+              </tr>
+
+              <tr data-canal="ml">
+                <td><span class="pill pill--yellow">Mercado Livre</span></td>
+                <td class="num"><input class="input input--sm num" data-field="taxa_pct" placeholder="0" /></td>
+                <td class="num"><input class="input input--sm num" data-field="taxa_fixa" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="desconto_medio" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="frete_seller" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="preco_de_add" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="margem_min_pct" placeholder="0" /></td>
+              </tr>
+
+              <tr data-canal="presencial">
+                <td><span class="pill pill--green">Presencial</span></td>
+                <td class="num"><input class="input input--sm num" data-field="taxa_pct" placeholder="0" /></td>
+                <td class="num"><input class="input input--sm num" data-field="taxa_fixa" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="desconto_medio" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="frete_seller" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="preco_de_add" placeholder="0,00" /></td>
+                <td class="num"><input class="input input--sm num" data-field="margem_min_pct" placeholder="0" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card__foot">
+          <div class="hint">Ex.: Shopee/ML com taxas e cupom médio. Presencial pode ser tudo 0 e só usar margem.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
+  `,
+  scripts: `
+    <script src="/js/precificacao.js"></script>
+  `
+}) %>
