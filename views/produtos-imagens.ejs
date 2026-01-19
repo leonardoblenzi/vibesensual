@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin • Imagens</title>
+
+  <link rel="stylesheet" href="/css/app.css" />
+  <style>
+    :root{
+      --bg:#07040d;
+      --card: rgba(255,255,255,.06);
+      --stroke: rgba(255,255,255,.12);
+      --txt: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.70);
+      --pink:#ff4fd8;
+      --purple:#8b5bff;
+      --glow: 0 0 22px rgba(255,79,216,.20), 0 0 28px rgba(139,91,255,.18);
+    }
+    body{ background: radial-gradient(900px 650px at 50% 20%, rgba(139,91,255,.18), transparent 60%), var(--bg); color: var(--txt); }
+    .wrap{ max-width: 1100px; margin: 0 auto; padding: 26px 16px 50px; }
+    .top{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom: 12px; }
+    .brand{ padding: 10px 12px; border-radius: 16px; background: rgba(255,255,255,.04); border: 1px solid var(--stroke); box-shadow: var(--glow); }
+    h1{ margin:0; font-size: 1.15rem; }
+    .muted{ color: var(--muted); }
+    a.link{ color: rgba(255,255,255,.9); text-decoration:none; border-bottom: 1px solid rgba(255,255,255,.2); }
+    .panel{ background: var(--card); border: 1px solid var(--stroke); border-radius: 18px; padding: 14px; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+    label{ font-size: .86rem; color: var(--muted); display:block; margin: 10px 0 6px; }
+    input{
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.07);
+      border: 1px solid var(--stroke);
+      color: var(--txt);
+      outline: none;
+    }
+    input:focus{ box-shadow: var(--glow); border-color: rgba(255,79,216,.35); }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; }
+    .row > div{ flex:1; min-width: 220px; }
+    .check{ display:flex; gap:10px; align-items:center; margin-top: 12px; color: var(--muted); }
+    .check input{ width:auto; }
+    .btn{
+      margin-top: 12px;
+      width:100%;
+      border:none; cursor:pointer;
+      border-radius: 14px;
+      padding: 11px 12px;
+      color: rgba(255,255,255,.95);
+      background: linear-gradient(90deg, rgba(255,79,216,.95), rgba(139,91,255,.92));
+      box-shadow: var(--glow);
+      font-weight: 900;
+    }
+    .mini{
+      padding: 8px 10px; border-radius: 12px; cursor:pointer;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: var(--txt);
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .danger{ border-color: rgba(255,79,216,.25); background: rgba(255,79,216,.10); }
+    .ok{ border-color: rgba(0,255,160,.18); background: rgba(0,255,160,.08); }
+    table{ width:100%; border-collapse: collapse; }
+    th, td{ padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,.10); vertical-align: top; }
+    th{ text-align:left; color: var(--muted); font-weight: 700; font-size: .86rem; }
+    .img{
+      width: 78px; height: 78px; border-radius: 14px; overflow:hidden;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      display:flex; align-items:center; justify-content:center;
+    }
+    .img img{ width:100%; height:100%; object-fit: cover; display:block; }
+    .pill{
+      display:inline-flex; padding: 4px 10px; border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06);
+      font-size: .78rem; color: rgba(255,255,255,.88);
+    }
+    .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .err{
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,79,216,.22);
+      background: rgba(255,79,216,.10);
+      color: rgba(255,255,255,.92);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <h1>Imagens • <%= product.nome %></h1>
+        <div class="muted">SKU: <b><%= product.sku %></b></div>
+        <div class="muted" style="margin-top:6px;">
+          <a class="link" href="/admin/produtos">Voltar</a>
+          &nbsp;•&nbsp;
+          <a class="link" href="/admin/produtos/<%= product.id %>/variacoes">Variações</a>
+          &nbsp;•&nbsp;
+          <a class="link" href="/catalogo/produto/<%= product.id %>">Ver no catálogo</a>
+        </div>
+      </div>
+
+      <form method="post" action="/admin/logout">
+        <button class="mini" type="submit">Sair</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 6px;">Adicionar imagem (URL)</h3>
+      <div class="muted">Cole o link da imagem. Você pode marcar “capa”.</div>
+
+      <% if (error) { %>
+        <div class="err"><b>Erro:</b> <%= error %></div>
+      <% } %>
+
+      <form method="post" action="/admin/produtos/<%= product.id %>/imagens">
+        <label>URL da imagem</label>
+        <input name="url" required placeholder="https://..." />
+
+        <div class="row">
+          <div>
+            <label>Alt (opcional)</label>
+            <input name="alt" placeholder="Texto alternativo" />
+          </div>
+          <div>
+            <label>Ordem</label>
+            <input name="ordem" type="number" step="1" value="0" />
+          </div>
+        </div>
+
+        <div class="check">
+          <input id="is_cover" type="checkbox" name="is_cover" />
+          <label for="is_cover" style="margin:0;color:var(--muted);">Definir como capa</label>
+        </div>
+
+        <button class="btn" type="submit">Salvar imagem</button>
+      </form>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <h3 style="margin:0 0 10px;">Imagens cadastradas</h3>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Preview</th>
+            <th>URL</th>
+            <th>Ordem</th>
+            <th>Capa</th>
+            <th style="width: 260px;">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% (images || []).forEach(im => { %>
+            <tr>
+              <td>
+                <div class="img">
+                  <img src="<%= im.url %>" alt="<%= im.alt || product.nome %>">
+                </div>
+              </td>
+              <td style="word-break:break-word;">
+                <div class="muted" style="font-size:.85rem;"><%= im.url %></div>
+                <% if (im.alt) { %>
+                  <div class="muted" style="margin-top:6px;">Alt: <%= im.alt %></div>
+                <% } %>
+              </td>
+              <td><span class="pill"><%= im.ordem %></span></td>
+              <td><span class="pill"><%= im.is_cover ? "Sim" : "Não" %></span></td>
+              <td>
+                <div class="actions">
+                  <form method="post" action="/admin/produtos/<%= product.id %>/imagens/<%= im.id %>/capa">
+                    <button class="mini ok" type="submit">Definir capa</button>
+                  </form>
+
+                  <form method="post" action="/admin/produtos/<%= product.id %>/imagens/<%= im.id %>/delete"
+                        onsubmit="return confirm('Excluir esta imagem?')">
+                    <button class="mini danger" type="submit">Excluir</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+
+          <% if (!images || images.length === 0) { %>
+            <tr>
+              <td colspan="5" class="muted">Nenhuma imagem cadastrada ainda.</td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

@@ -9,7 +9,8 @@ function safeNum(v, def = 0) {
 }
 
 // canais permitidos no sistema
-const CANAIS = new Set(["shopee", "ml", "presencial"]);
+const CANAIS = ["shopee", "ml", "presencial"];
+const CANAIS_SET = new Set(CANAIS);
 
 module.exports = {
   // =========================
@@ -38,41 +39,67 @@ module.exports = {
       });
     } catch (err) {
       console.error("PrecificacaoController.data error:", err);
-      return res.status(500).json({ ok: false, error: err.message || "Erro ao carregar dados." });
+      return res
+        .status(500)
+        .json({ ok: false, error: err.message || "Erro ao carregar dados." });
     }
   },
 
   // =========================
   // API: salvar preços (somente diffs)
   // POST /admin/precificacao/prices
-  // body: { updates: [{ productId, canal, price }] }
+  // body: { updates: [{ productId, canal, price, priceDe }] }
+  //
+  // price   => "Por" (obrigatório pra exibir)
+  // priceDe => "De"  (promo opcional) — só exibe se De > Por
   // =========================
   async savePrices(req, res) {
     try {
       const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
 
       if (!updates.length) {
-        return res.status(400).json({ ok: false, error: "Nenhuma atualização enviada." });
+        return res
+          .status(400)
+          .json({ ok: false, error: "Nenhuma atualização enviada." });
       }
 
-      // validação básica
+      // validação básica + normalização
       const clean = [];
+
       for (const u of updates) {
-        const productId = String(u.productId || "").trim();
-        const canal = String(u.canal || "").trim();
-        const priceRaw = u.price;
+        const productId = String(u?.productId || "").trim();
+        const canal = String(u?.canal || "").trim();
 
         if (!productId) continue;
-        if (!CANAIS.has(canal)) continue;
+        if (!CANAIS_SET.has(canal)) continue;
 
         // aceita null para "limpar" preço
-        let price = null;
-        if (priceRaw !== null && priceRaw !== undefined) {
-          const n = safeNum(priceRaw, NaN);
-          if (Number.isFinite(n) && n > 0) price = n;
-        }
+        const normPriceField = (raw) => {
+          if (raw === null) return null;
+          if (raw === undefined) return undefined; // "não mexer" (se vier assim)
+          const n = safeNum(raw, NaN);
+          if (!Number.isFinite(n)) return undefined;
+          // preço <= 0 não faz sentido; se quiser "zerar", use null
+          if (n <= 0) return null;
+          return n;
+        };
 
-        clean.push({ productId, canal, price });
+        const price = normPriceField(u.price);
+        const priceDe = normPriceField(u.priceDe);
+
+        // Se nenhum campo veio de fato, ignora
+        if (price === undefined && priceDe === undefined) continue;
+
+        // Regra: se "De" vier e for <= 0, vira null (já tratado)
+        // Regra opcional (boa prática): se De vier mas Por está null/undefined, mantém De, mas UI normalmente não exibe.
+        // Aqui a gente só salva o que chegou.
+
+        clean.push({
+          productId,
+          canal,
+          price: price === undefined ? undefined : price,
+          priceDe: priceDe === undefined ? undefined : priceDe,
+        });
       }
 
       if (!clean.length) {
@@ -84,7 +111,9 @@ module.exports = {
       return res.json({ ok: true });
     } catch (err) {
       console.error("PrecificacaoController.savePrices error:", err);
-      return res.status(500).json({ ok: false, error: err.message || "Erro ao salvar preços." });
+      return res
+        .status(500)
+        .json({ ok: false, error: err.message || "Erro ao salvar preços." });
     }
   },
 
@@ -101,6 +130,7 @@ module.exports = {
       }
 
       const clean = {};
+
       for (const canal of CANAIS) {
         const r = rules[canal];
         if (!r || typeof r !== "object") continue;
@@ -127,7 +157,9 @@ module.exports = {
       // garante que veio tudo
       for (const canal of CANAIS) {
         if (!clean[canal]) {
-          return res.status(400).json({ ok: false, error: `Regras do canal '${canal}' ausentes.` });
+          return res
+            .status(400)
+            .json({ ok: false, error: `Regras do canal '${canal}' ausentes.` });
         }
       }
 
@@ -136,7 +168,9 @@ module.exports = {
       return res.json({ ok: true });
     } catch (err) {
       console.error("PrecificacaoController.saveRules error:", err);
-      return res.status(500).json({ ok: false, error: err.message || "Erro ao salvar regras." });
+      return res
+        .status(500)
+        .json({ ok: false, error: err.message || "Erro ao salvar regras." });
     }
   },
 };

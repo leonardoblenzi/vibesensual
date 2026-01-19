@@ -1,4 +1,3 @@
-// src/controllers/CatalogoController.js
 "use strict";
 
 const CatalogoService = require("../services/CatalogoService");
@@ -28,7 +27,6 @@ module.exports = {
       const canal = pickCanal(req.query.canal);
 
       const whatsappNumber = onlyDigits(process.env.WHATSAPP_NUMBER);
-      // se não setar, não quebra o catálogo; só esconde o botão
       const hasWhatsapp = whatsappNumber.length >= 10;
 
       const categories = await CatalogoService.listActiveCategories();
@@ -44,6 +42,28 @@ module.exports = {
         canal,
         categories,
         products,
+        whatsappNumber,
+        hasWhatsapp,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async product(req, res, next) {
+    try {
+      const id = String(req.params.id || "").trim();
+      const canal = pickCanal(req.query.canal);
+
+      const whatsappNumber = onlyDigits(process.env.WHATSAPP_NUMBER);
+      const hasWhatsapp = whatsappNumber.length >= 10;
+
+      const product = await CatalogoService.getPublicProductById({ id, canal });
+      if (!product) return res.status(404).send("Produto não encontrado.");
+
+      res.render("produto", {
+        canal,
+        product,
         whatsappNumber,
         hasWhatsapp,
       });

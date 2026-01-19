@@ -24,10 +24,12 @@
     h1{ margin:0; font-size: 1.15rem; }
     p{ margin:6px 0 0; color: var(--muted); }
     a.link{ color: rgba(255,255,255,.9); text-decoration:none; border-bottom: 1px solid rgba(255,255,255,.2); }
+
     .panel{ background: var(--card); border: 1px solid var(--stroke); border-radius: 18px; padding: 14px; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
     .grid{ display:grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
     .left{ grid-column: span 5; }
     .right{ grid-column: span 7; }
+
     label{ font-size: .86rem; color: var(--muted); display:block; margin: 10px 0 6px; }
     input, select, textarea{
       width: 100%;
@@ -40,10 +42,13 @@
     }
     textarea{ min-height: 84px; resize: vertical; }
     input:focus, select:focus, textarea:focus{ box-shadow: var(--glow); border-color: rgba(255,79,216,.35); }
+
     .row{ display:flex; gap:10px; }
     .row > div{ flex:1; }
+
     .check{ display:flex; gap:10px; align-items:center; margin-top: 12px; color: var(--muted); }
     .check input{ width:auto; }
+
     .btn{
       margin-top: 12px;
       width:100%;
@@ -55,24 +60,36 @@
       box-shadow: var(--glow);
       font-weight: 900;
     }
+
     table{ width:100%; border-collapse: collapse; }
     th, td{ padding: 10px 10px; border-bottom: 1px solid rgba(255,255,255,.10); vertical-align: top; }
     th{ text-align:left; color: var(--muted); font-weight: 700; font-size: .86rem; }
+
     .pill{
       display:inline-flex; padding: 4px 10px; border-radius: 999px;
       border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06);
       font-size: .78rem; color: rgba(255,255,255,.88);
     }
+
     .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+
     .mini{
       padding: 8px 10px; border-radius: 12px; cursor:pointer;
       border: 1px solid rgba(255,255,255,.12);
       background: rgba(255,255,255,.06);
       color: var(--txt);
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      line-height: 1;
+      white-space:nowrap;
     }
     .danger{ border-color: rgba(255,79,216,.25); background: rgba(255,79,216,.10); }
+
     .filters{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin: 10px 0 14px; }
     .filters input, .filters select{ width: auto; min-width: 220px; }
+
     @media (max-width: 980px){
       .left,.right{ grid-column: span 12; }
       .filters input, .filters select{ width: 100%; }
@@ -147,7 +164,7 @@
             <% }) %>
           </select>
           <button class="mini" type="submit">Filtrar</button>
-          <a class="mini" href="/admin/produtos" style="text-decoration:none;display:inline-flex;align-items:center;">Limpar</a>
+          <a class="mini" href="/admin/produtos">Limpar</a>
         </form>
 
         <table>
@@ -158,11 +175,23 @@
               <th>Estoque</th>
               <th>Custo</th>
               <th>Status</th>
-              <th style="width: 240px;">Ações</th>
+              <th style="width: 280px;">Ações</th>
             </tr>
           </thead>
           <tbody>
             <% (products || []).forEach(p => { %>
+              <%
+                const rowPayload = encodeURIComponent(JSON.stringify({
+                  id: p.id,
+                  nome: p.nome || "",
+                  sku: p.sku || "",
+                  category_id: p.category_id || "",
+                  publicado: !!p.publicado,
+                  descricao: p.descricao || "",
+                  estoque_atual: Number(p.estoque_atual || 0),
+                  custo_medio: Number(p.custo_medio || 0),
+                }));
+              %>
               <tr>
                 <td>
                   <b><%= p.nome %></b>
@@ -178,29 +207,14 @@
                 <td><span class="pill"><%= p.publicado ? "Publicado" : "Rascunho" %></span></td>
                 <td>
                   <div class="actions">
-                    <%
-                      const payloadObj = {
-                        id: p.id,
-                        nome: p.nome || "",
-                        sku: p.sku || "",
-                        categoryId: p.category_id || "",
-                        publicado: !!p.publicado,
-                        descricao: p.descricao || "",
-                        estoque: (p.estoque_atual != null ? p.estoque_atual : 0),
-                        custo: (p.custo_medio != null ? p.custo_medio : 0)
-                      };
-                      const payload = encodeURIComponent(JSON.stringify(payloadObj));
-                    %>
+                    <button class="mini js-edit" type="button" data-payload="<%= rowPayload %>">Editar</button>
 
-                    <button
-                      class="mini js-edit"
-                      type="button"
-                      data-payload="<%= payload %>"
-                    >
-                      Editar
-                    </button>
+                    <!-- ✅ NOVOS BOTÕES -->
+                    <a class="mini" href="/admin/produtos/<%= p.id %>/imagens">Imagens</a>
+                    <a class="mini" href="/admin/produtos/<%= p.id %>/variacoes">Variações</a>
 
-                    <form method="post" action="/admin/produtos/<%= p.id %>/delete" onsubmit="return confirm('Excluir o produto?')">
+                    <form method="post" action="/admin/produtos/<%= p.id %>/delete"
+                          onsubmit="return confirm('Excluir o produto?')">
                       <button class="mini danger" type="submit">Excluir</button>
                     </form>
                   </div>
@@ -282,15 +296,17 @@
     const eEst = document.querySelector("#e_estoque");
     const eCus = document.querySelector("#e_custo");
 
-    function openEdit(id, nome, sku, categoryId, publicado, descricao, estoque, custo){
-      editForm.action = "/admin/produtos/" + id;
-      eNome.value = nome || "";
-      eSku.value = sku || "";
-      eCat.value = categoryId || "";
-      ePub.checked = !!publicado;
-      eDesc.value = descricao || "";
-      eEst.value = (estoque !== null && estoque !== undefined) ? estoque : 0;
-      eCus.value = (custo !== null && custo !== undefined) ? custo : 0;
+    function openEdit(data){
+      editForm.action = "/admin/produtos/" + data.id;
+
+      eNome.value = data.nome || "";
+      eSku.value = data.sku || "";
+      eCat.value = data.category_id || "";
+      ePub.checked = !!data.publicado;
+      eDesc.value = data.descricao || "";
+      eEst.value = Number(data.estoque_atual || 0);
+      eCus.value = Number(data.custo_medio || 0);
+
       modal.style.display = "block";
     }
 
@@ -298,33 +314,16 @@
       modal.style.display = "none";
     }
 
-    // fechar clicando fora
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) closeEdit();
-    });
-
-    // ✅ sem onclick com parâmetros: lê data-payload e abre modal
     document.addEventListener("click", (e) => {
       const btn = e.target.closest(".js-edit");
       if (!btn) return;
 
+      const payload = btn.getAttribute("data-payload") || "";
       try {
-        const encoded = btn.getAttribute("data-payload") || "";
-        const payload = JSON.parse(decodeURIComponent(encoded));
-
-        openEdit(
-          payload.id,
-          payload.nome,
-          payload.sku,
-          payload.categoryId,
-          payload.publicado,
-          payload.descricao,
-          payload.estoque,
-          payload.custo
-        );
+        const data = JSON.parse(decodeURIComponent(payload));
+        openEdit(data);
       } catch (err) {
-        console.error("Falha ao abrir edição:", err);
-        alert("Não foi possível abrir o modal de edição. Veja o console.");
+        alert("Erro ao abrir edição (payload inválido).");
       }
     });
   </script>

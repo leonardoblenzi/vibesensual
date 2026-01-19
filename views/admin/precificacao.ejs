@@ -1,4 +1,13 @@
 <!-- views/admin/precificacao.ejs -->
+<%
+  // ✅ Bootstrap seguro (sem EJS dentro de <script>)
+  const __PRECIFICACAO_PAYLOAD__ = encodeURIComponent(JSON.stringify({
+    products: products || [],
+    pricesByProductId: pricesByProductId || {},
+    rules: rules || {}
+  }));
+%>
+
 <%- include("../layouts/admin", {
   title: "Precificação • VibeSensual",
   active: "precificacao",
@@ -14,6 +23,14 @@
     </div>
   `,
   body: `
+    <!-- ✅ Bootstrap para o JS -->
+    <div
+      id="precificacaoApp"
+      data-payload="${__PRECIFICACAO_PAYLOAD__}"
+      data-save-prices="/admin/precificacao/prices"
+      data-save-rules="/admin/precificacao/rules"
+    ></div>
+
     <section class="page-head">
       <div>
         <h1 class="h1">Precificação</h1>
@@ -37,7 +54,7 @@
     <section class="panel" data-panel="preco-fixo">
       <div class="panel__head">
         <h2 class="h2">Preço fixo por produto e canal</h2>
-        <p class="muted">Edite direto na tabela e salve. O sistema usa isso no catálogo e no cálculo do lucro.</p>
+        <p class="muted">Edite direto na tabela e salve. Agora suporta <b>Por</b> + <b>De</b> por canal (promo opcional).</p>
       </div>
 
       <div class="grid grid--2">
@@ -62,7 +79,7 @@
             <div class="row row--inline">
               <label class="check">
                 <input type="checkbox" id="onlyMissing" />
-                <span>Mostrar só sem preço</span>
+                <span>Mostrar só sem preço (Por)</span>
               </label>
             </div>
 
@@ -71,7 +88,7 @@
               <button class="btn" type="button" id="btnAplicarFiltro">Aplicar</button>
             </div>
 
-            <div class="hint">Dica: dá pra aplicar “preço sugerido” em massa usando as regras globais.</div>
+            <div class="hint">Dica: “De” é opcional. Só aparece no catálogo se <b>De &gt; Por</b>.</div>
           </div>
         </div>
 
@@ -88,7 +105,7 @@
                 </select>
                 <button class="btn" type="button" id="btnAplicarSugerido">Aplicar</button>
               </div>
-              <div class="hint">Ele calcula e preenche só onde estiver vazio (ou conforme opção no JS).</div>
+              <div class="hint">Preenche Por (e De se você tiver “Acréscimo DE” nas regras).</div>
             </div>
 
             <div class="row">
@@ -136,9 +153,9 @@
                 <th>SKU</th>
                 <th class="num">Estoque</th>
                 <th class="num">Custo</th>
-                <th class="num">Shopee</th>
-                <th class="num">ML</th>
-                <th class="num">Presencial</th>
+                <th class="num">Shopee (Por/De)</th>
+                <th class="num">ML (Por/De)</th>
+                <th class="num">Presencial (Por/De)</th>
                 <th class="num">Margem (canal)</th>
                 <th>Status</th>
               </tr>
@@ -165,7 +182,7 @@
             <div class="row">
               <label class="label" for="calcProduto">Produto (opcional)</label>
               <input class="input" id="calcProduto" placeholder="buscar por nome/SKU…" />
-              <div class="hint">Se escolher um produto, puxa custo automaticamente.</div>
+              <div class="hint">Dica: se digitar exatamente o SKU, ele identifica e habilita “Salvar no canal”.</div>
             </div>
 
             <div class="row">
@@ -231,7 +248,7 @@
           <div class="card__head"><h3 class="h3">Resultado</h3></div>
           <div class="card__body">
             <div class="kpi">
-              <div class="kpi__label">Preço sugerido</div>
+              <div class="kpi__label">Preço sugerido (Por)</div>
               <div class="kpi__value" id="outPrecoSugerido">—</div>
               <div class="kpi__sub muted" id="outPrecoDe">Preço “DE”: —</div>
             </div>
@@ -268,7 +285,7 @@
               <div class="row row--inline">
                 <button class="btn" type="button" id="btnSalvarPrecoCanal">Salvar no canal selecionado</button>
               </div>
-              <div class="hint">Se você escolheu um produto, salva direto no banco.</div>
+              <div class="hint">Se o SKU for reconhecido, salva Por + De no banco.</div>
             </div>
           </div>
         </div>
@@ -362,7 +379,7 @@
         </div>
 
         <div class="card__foot">
-          <div class="hint">Ex.: Shopee/ML com taxas e cupom médio. Presencial pode ser tudo 0 e só usar margem.</div>
+          <div class="hint">Ex.: “Acréscimo DE” soma no preço sugerido pra gerar o “De”.</div>
         </div>
       </div>
     </section>

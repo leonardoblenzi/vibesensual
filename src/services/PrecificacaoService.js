@@ -2,38 +2,13 @@
 "use strict";
 
 /**
- * Este service assume que você tem:
- *
- * 1) products
- *    - id (uuid ou bigserial)  [aqui tratamos como string]
- *    - nome (text)
- *    - sku (text unique)
- *
- * 2) product_inventory
- *    - product_id (FK products.id)
- *    - estoque_atual (int)
- *    - custo_medio (numeric)  // ou custo_atual
- *
- * 3) product_prices
- *    - id (bigserial/uuid)
- *    - product_id (FK)
- *    - canal (text)          // 'shopee'|'ml'|'presencial'
- *    - preco_venda (numeric)
- *    - atualizado_em (timestamptz)
- *    UNIQUE(product_id, canal)
- *
- * 4) channel_rules
- *    - canal (text PK)
- *    - taxa_pct (numeric)
- *    - taxa_fixa (numeric)
- *    - desconto_medio (numeric)
- *    - frete_seller (numeric)
- *    - preco_de_add (numeric)
- *    - margem_min_pct (numeric)
- *    - atualizado_em (timestamptz)
+ * Espera:
+ * - product_prices: (product_id, canal, preco_venda, preco_de, atualizado_em)
+ *   UNIQUE(product_id, canal)
+ * - channel_rules como já estava
  */
 
-const db = require("../db/db"); // você vai criar esse arquivo: exporta { query, getClient }
+const db = require("../db/db");
 
 const CANAIS = ["shopee", "ml", "presencial"];
 
@@ -42,31 +17,49 @@ function num(v, def = 0) {
   return Number.isFinite(n) ? n : def;
 }
 
+function numNull(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function emptyRules() {
   return {
-    shopee: { taxa_pct: 0, taxa_fixa: 0, desconto_medio: 0, frete_seller: 0, preco_de_add: 0, margem_min_pct: 0 },
-    ml: { taxa_pct: 0, taxa_fixa: 0, desconto_medio: 0, frete_seller: 0, preco_de_add: 0, margem_min_pct: 0 },
-    presencial: { taxa_pct: 0, taxa_fixa: 0, desconto_medio: 0, frete_seller: 0, preco_de_add: 0, margem_min_pct: 0 },
+    shopee: {
+      taxa_pct: 0,
+      taxa_fixa: 0,
+      desconto_medio: 0,
+      frete_seller: 0,
+      preco_de_add: 0,
+      margem_min_pct: 0,
+    },
+    ml: {
+      taxa_pct: 0,
+      taxa_fixa: 0,
+      desconto_medio: 0,
+      frete_seller: 0,
+      preco_de_add: 0,
+      margem_min_pct: 0,
+    },
+    presencial: {
+      taxa_pct: 0,
+      taxa_fixa: 0,
+      desconto_medio: 0,
+      frete_seller: 0,
+      preco_de_add: 0,
+      margem_min_pct: 0,
+    },
   };
 }
 
 module.exports = {
-  // =========================
-  // Load all data for UI
-  // =========================
   async getData() {
     const products = await this.listProducts();
     const pricesByProductId = await this.getPricesByProductId();
     const rules = await this.getRules();
-
     return { products, pricesByProductId, rules };
   },
 
-  // =========================
-  // Products (with inventory)
-  // =========================
   async listProducts() {
-    // Ajuste se suas colunas tiverem nomes diferentes
     const { rows } = await db.query(
       `
       select
@@ -88,21 +81,18 @@ module.exports = {
       sku: r.sku,
       estoque_atual: Number(r.estoque_atual ?? 0),
       custo_medio: num(r.custo_medio, 0),
-      // compat: o JS tenta p.custo também
       custo: num(r.custo_medio, 0),
     }));
   },
 
-  // =========================
-  // Prices map for UI
-  // =========================
   async getPricesByProductId() {
     const { rows } = await db.query(
       `
       select
         product_id,
         canal,
-        preco_venda
+        preco_venda,
+        preco_de
       from product_prices
       `
     );
@@ -112,20 +102,25 @@ module.exports = {
       const pid = String(r.product_id);
       map[pid] ||= { shopee: null, ml: null, presencial: null };
 
-      if (CANAIS.includes(r.canal)) {
-        map[pid][r.canal] = num(r.preco_venda, null);
-      }
+      const canal = String(r.canal);
+      if (!CANAIS.includes(canal)) continue;
+
+      map[pid][canal] = {
+        por: numNull(r.preco_venda),
+        de: numNull(r.preco_de),
+        // compat
+        preco_venda: numNull(r.preco_venda),
+        preco_de: numNull(r.preco_de),
+      };
     }
+
     return map;
   },
 
-  // =========================
-  // Rules for UI
-  // =========================
   async getRules() {
     const base = emptyRules();
-
     const { rows } = await db.query(`select * from channel_rules`);
+
     for (const r of rows) {
       const canal = String(r.canal);
       if (!CANAIS.includes(canal)) continue;
@@ -140,48 +135,129 @@ module.exports = {
       };
     }
 
-    // se não existir no banco ainda, retorna base com zeros
     return base;
   },
 
-  // =========================
-  // Save prices (diff list)
-  // updates: [{ productId, canal, price }]
-  // =========================
+  /**
+   * updates: [{ productId, canal, price, priceDe }]
+   * - price   -> preco_venda ("Por")
+   * - priceDe -> preco_de   ("De" promo opcional)
+   *
+   * Regras IMPORTANTES:
+   * - undefined = NÃO ALTERA o campo
+   * - null      = LIMPA o campo (vira NULL no DB)
+   * - delete row SOMENTE quando (price === null && priceDe === null)
+   *
+   * Isso evita sobrescrever um campo quando você editou só o outro.
+   */
   async savePrices(updates) {
     const client = await db.getClient();
+
     try {
       await client.query("begin");
 
-      // valida IDs/canais
-      const clean = updates
-        .filter((u) => u && u.productId && CANAIS.includes(u.canal))
-        .map((u) => ({
-          productId: String(u.productId),
-          canal: String(u.canal),
-          price: u.price === null ? null : num(u.price, null),
-        }));
+      const clean = (Array.isArray(updates) ? updates : [])
+        .filter((u) => u && u.productId && CANAIS.includes(String(u.canal)))
+        .map((u) => {
+          // normaliza compat (aceita por/de também)
+          const rawPrice =
+            u.price !== undefined
+              ? u.price
+              : u.preco_venda !== undefined
+              ? u.preco_venda
+              : u.por !== undefined
+              ? u.por
+              : undefined;
 
-      if (!clean.length) return;
+          const rawPriceDe =
+            u.priceDe !== undefined
+              ? u.priceDe
+              : u.preco_de !== undefined
+              ? u.preco_de
+              : u.de !== undefined
+              ? u.de
+              : undefined;
 
-      // Upsert por item
+          // mantém undefined (não mexe), mantém null (limpa), número vira número
+          const price =
+            rawPrice === undefined ? undefined : rawPrice === null ? null : numNull(rawPrice);
+
+          const priceDe =
+            rawPriceDe === undefined ? undefined : rawPriceDe === null ? null : numNull(rawPriceDe);
+
+          return {
+            productId: String(u.productId),
+            canal: String(u.canal),
+            price,
+            priceDe,
+          };
+        });
+
+      if (!clean.length) {
+        await client.query("commit");
+        return;
+      }
+
       for (const u of clean) {
-        if (u.price === null) {
-          // "limpar" preço
+        // delete só se AMBOS explicitamente null
+        if (u.price === null && u.priceDe === null) {
           await client.query(
             `delete from product_prices where product_id = $1 and canal = $2`,
             [u.productId, u.canal]
           );
-        } else {
-          await client.query(
-            `
-            insert into product_prices (product_id, canal, preco_venda, atualizado_em)
-            values ($1, $2, $3, now())
-            on conflict (product_id, canal)
-            do update set preco_venda = excluded.preco_venda, atualizado_em = now()
-            `,
-            [u.productId, u.canal, u.price]
-          );
+          continue;
+        }
+
+        // upsert com update parcial:
+        // - se vier undefined, mantém o valor atual do banco (COALESCE(field, current))
+        await client.query(
+          `
+          insert into product_prices (product_id, canal, preco_venda, preco_de, atualizado_em)
+          values ($1, $2, $3, $4, now())
+          on conflict (product_id, canal)
+          do update set
+            preco_venda = coalesce(excluded.preco_venda, product_prices.preco_venda),
+            preco_de = coalesce(excluded.preco_de, product_prices.preco_de),
+            atualizado_em = now()
+          `,
+          [
+            u.productId,
+            u.canal,
+            u.price === undefined ? null : u.price,     // undefined -> NULL no excluded (não altera por COALESCE)
+            u.priceDe === undefined ? null : u.priceDe, // undefined -> NULL no excluded (não altera por COALESCE)
+          ]
+        );
+
+        // ATENÇÃO:
+        // - se você quiser "limpar" um campo, mande null (isso vai virar NULL e COALESCE não vai manter)
+        // Mas COALESCE manteria se excluded fosse NULL. Então, pra "limpar", precisamos diferenciar.
+        // Solução: quando for null, fazemos update direto depois. (seguro e simples)
+        if (u.price === null || u.priceDe === null) {
+          const sets = [];
+          const vals = [];
+          let idx = 1;
+
+          // product_id e canal no fim
+          if (u.price === null) {
+            sets.push(`preco_venda = NULL`);
+          }
+          if (u.priceDe === null) {
+            sets.push(`preco_de = NULL`);
+          }
+
+          if (sets.length) {
+            vals.push(u.productId);
+            vals.push(u.canal);
+
+            await client.query(
+              `
+              update product_prices
+              set ${sets.join(", ")}, atualizado_em = now()
+              where product_id = $1 and canal = $2
+              `,
+              vals
+            );
+          }
         }
       }
 
@@ -194,17 +270,13 @@ module.exports = {
     }
   },
 
-  // =========================
-  // Save rules
-  // rules: { shopee:{...}, ml:{...}, presencial:{...} }
-  // =========================
   async saveRules(rules) {
     const client = await db.getClient();
     try {
       await client.query("begin");
 
       for (const canal of CANAIS) {
-        const r = rules[canal];
+        const r = rules?.[canal];
         if (!r) continue;
 
         await client.query(
