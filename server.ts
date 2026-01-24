@@ -153,6 +153,15 @@ app.post('/api/sales', async (req, res) => {
   }
 });
 
+app.delete('/api/sales/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM sales WHERE id = $1', [req.params.id]);
+    res.status(204).send();
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // Estáticos
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get('*', (req, res) => {
