@@ -1,266 +1,511 @@
-MAPEAMENTO (TXT) — Vibe Sensual • Sistema Node.js + Render + Postgres
-Versão: 2026-01-18
-Obs: mapeamento do que já existe no projeto + “fundação” do banco via migrations.
+APEAMENTO (TXT) — Vibe Sensual • Sistema Node.js + Render + Postgres
+Versão: 2026-01-18 (atualizado com Preço POR/DE + rotas compat da Precificação + Extras de Produto)
+Obs: este mapeamento substitui o anterior e consolida o que já existe no projeto (migrations + rotas + telas).
 
 ============================================================
-1) VISÃO GERAL (arquitetura)
-------------------------------------------------------------
+
+VISÃO GERAL (arquitetura)
+
 Stack:
-- Node.js + Express
-- EJS (views server-side)
-- PostgreSQL (Render)
-- Migrations com Knex (schema do banco)
+
+Node.js + Express
+
+EJS (views server-side)
+
+PostgreSQL (Render)
+
+Migrations com Knex (schema do banco)
 
 Separação de áreas:
-- Público (cliente/visitante): rotas fora de /admin
-- Admin (gestão): tudo em /admin/* (protegido por sessão)
+
+Público (cliente/visitante): rotas fora de /admin
+
+Admin (gestão): tudo em /admin/* (protegido por sessão)
 
 Pastas principais:
-- src/
-  - app.js                -> Express app (middlewares, views, rotas)
-  - server.js             -> sobe o servidor/porta
-  - db/db.js              -> conexão PG (Pool) usada em runtime (services)
-  - middleware/           -> gates (ensureAdmin)
-  - controllers/          -> recebe req/res, chama services, renderiza views
-  - services/             -> regra de negócio + SQL via db.query()
-  - routes/               -> roteamento por feature
-- views/
-  - admin/                -> telas do admin (EJS)
-- public/
-  - css/                  -> estilo
-  - js/                   -> scripts do browser
+
+src/
+
+app.js -> Express app (middlewares, views, rotas)
+
+server.js -> sobe o servidor/porta
+
+db/db.js -> conexão PG (Pool) usada em runtime (services)
+
+middleware/ -> gates (ensureAdmin)
+
+controllers/ -> req/res, chama services, renderiza views
+
+services/ -> regra de negócio + SQL via db.query()
+
+routes/ -> roteamento por feature
+
+views/
+
+admin/ -> telas do admin (EJS)
+
+public/
+
+css/ -> estilo
+
+js/ -> scripts do browser
 
 ============================================================
 2) FLUXO PADRÃO (request)
-------------------------------------------------------------
-Rota (routes/*.js)
-  -> Controller (src/controllers/*.js)
-     -> Service (src/services/*.js)
-        -> DB (src/db/db.js)  [Pool PG]
-     -> View (views/*.ejs) ou redirect/JSON
+
+Rota (routes/.js)
+-> Controller (src/controllers/.js)
+-> Service (src/services/.js)
+-> DB (src/db/db.js) [Pool PG]
+-> View (views/.ejs) ou redirect/JSON
 
 ============================================================
 3) FUNÇÕES / TELAS (por feature) + arquivos usados
-------------------------------------------------------------
 
 3.1) Health Check (Render)
-- Objetivo: endpoint simples pra confirmar app online
-- Rota:
-  - GET /health
-- Arquivos:
-  - src/app.js  (define /health)
+
+Objetivo: endpoint simples pra confirmar app online
+
+Rota:
+
+GET /health
+
+Arquivos:
+
+src/app.js (define /health)
 
 3.2) Admin Auth (Login/Logout) + proteção
-- Objetivo: separar admin do público e impedir acesso sem login
-- Rotas:
-  - GET  /admin/login
-  - POST /admin/login
-  - POST /admin/logout
-- Arquivos:
-  - src/controllers/AdminAuthController.js
-  - src/middleware/ensureAdmin.js
-  - src/routes/admin.routes.js (declara auth + aplica ensureAdmin no restante)
-  - views/admin/login.ejs
+
+Objetivo: separar admin do público e impedir acesso sem login
+
+Rotas:
+
+GET /admin/login
+
+POST /admin/login
+
+POST /admin/logout
+
+Arquivos:
+
+src/controllers/AdminAuthController.js
+
+src/middleware/ensureAdmin.js
+
+src/routes/admin.routes.js (declara auth + aplica ensureAdmin no restante)
+
+views/admin/login.ejs
 
 Config (env no Render):
-- ADMIN_PASSWORD  -> senha do admin
-- SESSION_SECRET  -> segredo da sessão
+
+ADMIN_PASSWORD -> senha do admin
+
+SESSION_SECRET -> segredo da sessão
 
 3.3) Admin Home (Dashboard)
-- Objetivo: hub de navegação do admin
-- Rota:
-  - GET /admin
-- Arquivos:
-  - src/routes/admin.routes.js (router.get("/") …)
-  - views/admin/home.ejs
 
-3.4) Precificação (Admin)
-- Objetivo: tela de simulação/regras de precificação (3 jeitos no MVP)
-- Rotas (admin):
-  - /admin/precificacao/*  (rotas dentro do arquivo de precificação)
-- Arquivos:
-  - routes:     src/routes/precificacao.routes.js
-  - controller: controllers/PrecificacaoController.js
-  - service:    src/services/PrecificacaoService.js
-  - view:       views/admin/precificacao.ejs
-  - js browser: public/js/precificacao.js
-  - css:        public/css/app.css
+Objetivo: hub de navegação do admin
+
+Rota:
+
+GET /admin
+
+Arquivos:
+
+src/routes/admin.routes.js
+
+views/admin/home.ejs
+
+3.4) Precificação (Admin) — POR + DE por canal (promo opcional)
+
+Objetivo: definir preço fixo por canal e regras globais (calculadora + bulk apply)
+
+Rotas (admin):
+
+GET /admin/precificacao -> view (EJS)
+
+GET /admin/precificacao/data -> payload (products + prices + rules)
+
+POST /admin/precificacao/prices -> salva preços (diffs)
+
+POST /admin/precificacao/rules -> salva regras globais
+
+Compat (se mantiver aliases pra não quebrar telas antigas):
+
+POST /admin/precificacao/precos -> alias de /prices
+
+POST /admin/precificacao/regras -> alias de /rules
+
+Arquivos:
+
+routes: src/routes/precificacao.routes.js
+
+controller: src/controllers/PrecificacaoController.js
+
+service: src/services/PrecificacaoService.js
+
+view: views/admin/precificacao.ejs
+
+js browser: public/js/precificacao.js
+
+Pontos importantes (atualização):
+
+O front salva por (preco_venda) e de (preco_de) por canal.
+
+O EJS/JS devem apontar para:
+
+data-save-prices="/admin/precificacao/prices"
+
+data-save-rules="/admin/precificacao/rules"
+(ou manter /precos e /regras com aliases no backend, se preferir compat).
 
 3.5) Categorias (CRUD Admin)
-- Objetivo: criar/editar/excluir categorias e vincular nos produtos
-- Rotas:
-  - GET  /admin/categorias
-  - POST /admin/categorias
-  - POST /admin/categorias/:id
-  - POST /admin/categorias/:id/delete
-- Arquivos:
-  - routes:     src/routes/categorias.routes.js
-  - controller: src/controllers/CategoriasController.js
-  - service:    src/services/CategoryService.js
-  - view:       views/admin/categorias.ejs
+
+Objetivo: criar/editar/excluir categorias e vincular nos produtos
+
+Rotas:
+
+GET /admin/categorias
+
+POST /admin/categorias
+
+POST /admin/categorias/:id
+
+POST /admin/categorias/:id/delete
+
+Arquivos:
+
+routes: src/routes/categorias.routes.js
+
+controller: src/controllers/CategoriasController.js
+
+service: src/services/CategoryService.js
+
+view: views/admin/categorias.ejs
 
 3.6) Produtos + Estoque (CRUD Admin)
-- Objetivo: cadastrar produto, SKU, custo e estoque; vincular categoria; publicar no catálogo
-- Rotas:
-  - GET  /admin/produtos?q=…&categoryId=…
-  - POST /admin/produtos
-  - POST /admin/produtos/:id
-  - POST /admin/produtos/:id/delete
-- Arquivos:
-  - routes:     src/routes/produtos.routes.js
-  - controller: src/controllers/ProdutosController.js
-  - service:    src/services/ProductService.js
-  - view:       views/admin/produtos.ejs
 
-3.7) Clientes / Leads (fundação)
-- Objetivo: cliente opcional na venda; ao preencher telefone/email cria/atualiza automaticamente
-- Status: service existe (base), uso pleno entra quando tela de vendas for feita
-- Arquivos:
-  - service: src/services/CustomerService.js
-  - migrations: cria tabela customers + campos em sales (ver seção do banco)
+Objetivo: cadastrar produto, SKU, custo e estoque; vincular categoria; publicar no catálogo
 
-3.8) Vendas (fundação + pendente de telas)
-- Objetivo (planejado): registrar venda (origem: ML/Shopee/Presencial), dar baixa no estoque, calcular lucro/prejuízo e vincular cliente opcional
-- Status: base no banco preparada (sales + vínculo cliente), mas telas/rotas completas ainda não mapeadas aqui.
-- Próximos componentes esperados (quando começar):
-  - src/routes/vendas.routes.js
-  - src/controllers/VendasController.js
-  - src/services/VendasService.js
-  - views/admin/vendas.ejs (+ possível sale_items)
-  - migrations novas para itens da venda e cálculos
+Rotas:
 
-3.9) Catálogo público
-- Objetivo: visitantes/cliente verem catálogo e chamarem no WhatsApp
-- Status: rota raiz redireciona pra /catalogo (src/app.js).
-  - Se /catalogo já existe no teu repo atual, ele não apareceu no último “pacote” de arquivos listados aqui.
-  - Se ainda não existe, a próxima etapa é criar rota + view do catálogo.
-- Arquivos (já existem com certeza):
-  - src/app.js (GET "/" -> redirect "/catalogo")
+GET /admin/produtos?q=…&categoryId=…
+
+POST /admin/produtos
+
+POST /admin/produtos/:id
+
+POST /admin/produtos/:id/delete
+
+Arquivos:
+
+routes: src/routes/produtos.routes.js
+
+controller: src/controllers/ProdutosController.js
+
+service: src/services/ProductService.js
+
+view: views/admin/produtos.ejs
+
+3.7) Produtos Extras (Admin) — Imagens (URL) + Variações
+
+Objetivo: complementar produto com imagens via URL, escolher capa, e gerir variações (opção + estoque + adicional)
+
+Rotas (admin):
+Imagens:
+
+GET /admin/produtos/:id/imagens
+
+POST /admin/produtos/:id/imagens -> add imagem via URL
+
+POST /admin/produtos/:id/imagens/:imageId/capa -> define capa
+
+POST /admin/produtos/:id/imagens/:imageId/delete -> remove
+
+Variações:
+
+GET /admin/produtos/:id/variacoes
+
+POST /admin/produtos/:id/variacoes -> add variação
+
+POST /admin/produtos/:id/variacoes/:variantId -> update variação
+
+POST /admin/produtos/:id/variacoes/:variantId/delete
+
+Arquivos:
+
+controller: src/controllers/ProdutosExtrasController.js
+
+routes: src/routes/admin.routes.js (declara essas rotas protegidas)
+
+views: (telas de imagens/variações no admin — conforme estiverem no repo)
+
+3.8) Clientes / Leads (fundação)
+
+Objetivo: cliente opcional na venda; ao preencher telefone/email cria/atualiza automaticamente
+
+Status: service existe (base), uso pleno entra quando tela de vendas for feita
+
+Arquivos:
+
+service: src/services/CustomerService.js
+
+migrations: cria tabela customers + campos em sales
+
+3.9) Vendas (fundação + pendente de telas)
+
+Objetivo (planejado): registrar venda (origem: ML/Shopee/Presencial), baixa no estoque, lucro/prejuízo e vínculo de cliente
+
+Status: base no banco preparada (sales + vínculo cliente), mas telas/rotas completas ainda não mapeadas aqui.
+
+3.10) Catálogo público
+
+Objetivo: visitantes verem catálogo e chamarem no WhatsApp
+
+Status (atual): src/app.js redireciona GET "/" -> "/catalogo"
+
+Próximo bloco natural (já alinhado no projeto):
+
+catálogo listando products publicados
+
+página do produto (descrição, imagens, variações, Por/De, estoque)
+(Obs: se essa parte já foi criada no teu repo, ela entra no mapeamento na próxima revisão com os arquivos/rotas exatos.)
 
 ============================================================
 4) ROTAS (resumo)
-------------------------------------------------------------
-- src/app.js
-  - static: /public
-  - view engine: EJS, views = /views
-  - monta /admin -> src/routes/admin.routes.js
-  - GET /        -> redirect /catalogo
-  - GET /health  -> { ok: true }
 
-- src/routes/admin.routes.js
-  - /login, /logout (sem proteção)
-  - aplica ensureAdmin nas áreas internas:
-    - / (home)
-    - /precificacao
-    - /categorias
-    - /produtos
+src/app.js
+
+static: /public
+
+view engine: EJS, views = /views
+
+monta /admin -> src/routes/admin.routes.js
+
+GET / -> redirect /catalogo
+
+GET /health -> { ok: true }
+
+src/routes/admin.routes.js
+
+/login, /logout (sem proteção)
+
+aplica ensureAdmin nas áreas internas:
+
+GET /admin (home)
+
+/admin/precificacao -> src/routes/precificacao.routes.js
+
+/admin/categorias -> src/routes/categorias.routes.js
+
+/admin/produtos -> src/routes/produtos.routes.js
+
+Extras do Produto:
+
+/admin/produtos/:id/imagens
+
+/admin/produtos/:id/variacoes
+
+src/routes/precificacao.routes.js
+
+GET /admin/precificacao/ -> view
+
+GET /admin/precificacao/data -> payload
+
+POST /admin/precificacao/prices -> salvar preços (por/de)
+
+POST /admin/precificacao/rules -> salvar regras
+
+(opcional compat) /precos e /regras como alias
 
 ============================================================
 5) BANCO DE DADOS (como está funcionando)
-------------------------------------------------------------
 
 5.1) Conexão em runtime (app rodando)
 Arquivo:
-- src/db/db.js
+
+src/db/db.js
 Como funciona:
-- Usa Pool do pg
-- Lê conexão de:
-  - PG_DATABASE_URL || DATABASE_URL
-- Em produção (NODE_ENV=production ou RENDER=true):
-  - ssl: { rejectUnauthorized: false }
+
+Usa Pool do pg
+
+Lê conexão de:
+
+PG_DATABASE_URL || DATABASE_URL
+
+Em produção:
+
+ssl: { rejectUnauthorized: false }
 
 Uso:
-- Services chamam db.query(...) ou db.getClient() (transações)
+
+Services chamam db.query(...) ou db.getClient() (transações)
 
 5.2) Migrations (schema)
 Ferramenta:
-- Knex (knexfile.js + pasta /migrations)
-Como funciona:
-- knexfile.js lê:
-  - PG_DATABASE_URL || DATABASE_URL
-- Se não existir, cai em fallback local 127.0.0.1:5432 (apenas dev local)
 
+Knex (knexfile.js + pasta /migrations)
 Scripts típicos:
-- npm run migrate -> knex migrate:latest
+
+npm run migrate -> knex migrate:latest
 
 5.3) Migrations atuais (arquivos)
-- migrations/20260117_001_create_customers.js
-- migrations/20260117_002_add_customer_fields_to_sales.js
-- migrations/20260118_001_create_categories.js
-- migrations/20260118_002_create_products_and_inventory.js
+(Os nomes abaixo são os que você já listou + o bloco de precificação que já existe no seu repo.)
+
+migrations/20260117_001_create_customers.js
+
+migrations/20260117_002_add_customer_fields_to_sales.js
+
+migrations/20260118_001_create_categories.js
+
+migrations/20260118_002_create_products_and_inventory.js
+
+(precificação) migration(s) de:
+
+criar product_prices e channel_rules (se já não existiam)
+
+adicionar coluna preco_de em product_prices (promo “De” por canal)
+Obs: o nome exato do arquivo pode variar no teu repo, mas a mudança é essa.
 
 5.4) Tabelas atuais (alto nível)
-Obs: a definição exata de colunas está nas migrations acima, mas a estrutura geral é:
-
 (A) customers
-- Armazena clientes/leads (para vínculo opcional com vendas)
-- Criada por: 20260117_001_create_customers.js
+
+leads/clientes
+
+Criada por: 20260117_001_create_customers.js
 
 (B) sales
-- Tabela de vendas (pelo menos com campos de cliente e base para evoluir)
-- Alterada/criada por: 20260117_002_add_customer_fields_to_sales.js
-- Ideia: receber origem/canal (ml/shopee/presencial) e dados do cliente quando informados
+
+base de vendas (em evolução)
+
+Alterada/criada por: 20260117_002_add_customer_fields_to_sales.js
 
 (C) categories
-- Categorias do catálogo/admin (nome, slug, ativa, timestamps)
-- Criada por: 20260118_001_create_categories.js
+
+nome, slug, ativa, timestamps
+
+Criada por: 20260118_001_create_categories.js
 
 (D) products
-- Produtos (nome, sku, descrição, publicado, category_id, timestamps)
-- Criada por: 20260118_002_create_products_and_inventory.js
+
+nome, sku, descrição, publicado, category_id, timestamps
+
+Criada por: 20260118_002_create_products_and_inventory.js
 
 (E) product_inventory
-- Estoque/custo por produto (estoque_atual, custo_medio, timestamps)
-- Criada por: 20260118_002_create_products_and_inventory.js
-- Ligação: 1:1 com products (por product_id)
 
-(F) Tabelas internas do Knex
-- knex_migrations
-- knex_migrations_lock
-(Criadas automaticamente pelo Knex)
+estoque_atual, custo_medio, timestamps
+
+Criada por: 20260118_002_create_products_and_inventory.js
+
+(F) product_prices ✅ (Precificação)
+
+product_id (FK)
+
+canal (shopee | ml | presencial)
+
+preco_venda (numeric) -> “POR”
+
+preco_de (numeric) -> “DE” (opcional)
+
+atualizado_em (timestamptz)
+
+UNIQUE(product_id, canal)
+
+(G) channel_rules ✅ (Regras globais)
+
+canal (PK)
+
+taxa_pct, taxa_fixa
+
+desconto_medio, frete_seller
+
+preco_de_add (para sugerir “DE” automaticamente)
+
+margem_min_pct
+
+atualizado_em
+
+(H) Tabelas internas do Knex
+
+knex_migrations
+
+knex_migrations_lock
 
 5.5) Relacionamentos (modelo)
-- categories (1) -> (N) products
-  - products.category_id -> categories.id
-- products (1) -> (1) product_inventory
-  - product_inventory.product_id -> products.id
-- customers (1) -> (N) sales
-  - sales.customer_id (ou campos equivalentes) -> customers.id
-  - + campos de “snapshot” do cliente na venda (quando aplicável)
+
+categories (1) -> (N) products
+
+products (1) -> (1) product_inventory
+
+products (1) -> (N) product_prices (por canal)
+
+channel_rules (1 por canal)
+
+customers (1) -> (N) sales
 
 ============================================================
 6) CHECKLIST DO QUE JÁ ESTÁ “PRONTO” NO MVP
-------------------------------------------------------------
+
 ✅ Admin com login (sessão) e proteção por rota
 ✅ CRUD de Categorias
 ✅ CRUD de Produtos + Estoque (custo/estoque)
-✅ Precificação (admin) com tela e JS
+✅ Precificação (admin) com:
+
+regras globais
+
+calculadora
+
+Preço fixo POR + DE por canal
 ✅ Postgres no Render + migrations rodando
+✅ Extras Admin: rotas para Imagens por URL e Variações (ProdutosExtrasController)
 
 ============================================================
 7) PRÓXIMAS FEATURES (fila natural)
-------------------------------------------------------------
-1) Vendas (Admin)
-- registrar venda com origem (ML/Shopee/Presencial)
-- itens da venda (sale_items)
-- baixa automática de estoque
-- cálculo lucro/prejuízo por venda (com taxas por canal)
-- cliente opcional com auto-upsert por telefone/email
 
-2) Catálogo público 100% dinâmico (puxando products publicados)
-- filtro por categoria
-- busca
-- botão WhatsApp com mensagem pronta
+Catálogo público dinâmico completo
+
+vitrine em cards (imagem + Por/De + estoque)
+
+busca + filtro por categoria
+
+página de produto (descrição, imagens, variações, WhatsApp)
+
+Vendas (Admin)
+
+registrar venda (ML/Shopee/Presencial)
+
+itens da venda (sale_items)
+
+baixa automática de estoque
+
+lucro/prejuízo por venda
+
+cliente opcional (upsert por telefone/email)
 
 ============================================================
-8) ARQUIVOS “NÚCLEO” (pra não se perder)
-------------------------------------------------------------
-- src/server.js
-- src/app.js
-- src/db/db.js
-- knexfile.js
-- migrations/*
-- src/routes/admin.routes.js
-- views/admin/*
-- public/css/app.css
-- public/js/precificacao.js
+8) ARQUIVOS “NÚCLEO” (pra não se perder, more)
+
+src/server.js
+
+src/app.js
+
+src/db/db.js
+
+knexfile.js
+
+migrations/*
+
+src/routes/admin.routes.js
+
+src/routes/precificacao.routes.js
+
+src/controllers/PrecificacaoController.js
+
+src/services/PrecificacaoService.js
+
+views/admin/*
+
+public/css/app.css
+
+public/js/precificacao.js
