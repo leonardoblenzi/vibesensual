@@ -1,0 +1,5 @@
+{
+  "name": "Nexus IDE - AI Workspace",
+  "description": "A sophisticated AI-powered project and file explorer that allows users to create projects, scaffold file structures using Gemini, and manage development workflows with an integrated intelligent assistant.",
+  "requestFramePermissions": []
+}
