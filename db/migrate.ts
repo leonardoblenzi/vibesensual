@@ -1,3 +1,4 @@
+
 import pkg from 'pg';
 const { Pool } = pkg;
 import fs from 'fs';
@@ -19,14 +20,14 @@ async function runMigrations() {
   const migrationsDir = path.join(__dirname, 'migrations');
   const files = fs.readdirSync(migrationsDir).sort();
 
-  console.log('🚀 Iniciando migrations...');
+  console.log('🚀 Iniciando migrations no banco de dados...');
 
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
     
-    // Tabela simples para controle de migrations
+    // Tabela para controle de execução de migrations
     await client.query(`
       CREATE TABLE IF NOT EXISTS _migrations (
         id SERIAL PRIMARY KEY,
@@ -54,8 +55,8 @@ async function runMigrations() {
     console.log('✅ Migrations concluídas com sucesso!');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('❌ Erro ao executar migrations:', err);
-    // Fix: cast process to any to access Node-specific exit method when types are incomplete
+    console.error('❌ Erro crítico ao executar migrations:');
+    console.error(err);
     (process as any).exit(1);
   } finally {
     client.release();
